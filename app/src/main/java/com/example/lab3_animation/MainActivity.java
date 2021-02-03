@@ -18,6 +18,7 @@ import android.view.SurfaceView;
 import android.view.View;
 
 import java.util.ArrayList;
+import java.util.ConcurrentModificationException;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements View.OnTouchListener {
@@ -30,6 +31,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
     char chars[] = {'Т', 'Ю', 'Р', 'И', 'Н'};
     CharArray mychars;
     public static int HEIGTH_DEVICE;
+    public static int WIDTH_DEVICE;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,6 +45,7 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         DisplayMetrics metricsB = new DisplayMetrics();
         display.getMetrics(metricsB);
         HEIGTH_DEVICE = metricsB.heightPixels;
+        WIDTH_DEVICE = metricsB.widthPixels;
 
         mychars = new CharArray(chars);
         points = new ArrayList<>();
@@ -109,8 +112,9 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
         public DrawThread(SurfaceHolder surfaceHolder, Resources resources) {
             this.surfaceHolder = surfaceHolder;
             paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            paint.setTextSize(64);
-            paint.setColor(Color.RED);
+            paint.setTextSize(120);
+            paint.setFakeBoldText(true);
+            paint.setColor(Color.BLUE);
         }
 
         public void setRunFlag(boolean flag){
@@ -125,9 +129,15 @@ public class MainActivity extends AppCompatActivity implements View.OnTouchListe
                 try{
                     canvas = surfaceHolder.lockCanvas(null);
                     synchronized (surfaceHolder){
-                        canvas.drawColor(Color.GRAY);
-                        for(Point pt: points){
-                            canvas.drawText(""+pt.ch, pt.x, pt.y, paint);
+                        canvas.drawColor(Color.WHITE);
+                        try{
+                            for(Point pt: points){
+                                synchronized (pt){
+                                    canvas.drawText(""+pt.ch, pt.x, pt.y, paint);
+                                }
+                            }
+                        } catch (ConcurrentModificationException e){
+
                         }
 
                     }
@@ -201,43 +211,39 @@ class PointThread implements Runnable{
     @Override
     public void run() {
 
-        float g = 9.8f;
-        float i = point.x;
-        float vY = 0;
-        float vX = 6;
-        float t =0;
-        float vNow=0;
-        float newY=0;
-        float newX=0;
         float x0 = point.x;
         float y0 = point.y;
+        float vy = 0;
+        float vx = 25f;
+        float g = 9.8f;
+        float t = 0;
+        float v=0;
+
         while(point.run){
-            try{
-                if(point.y < 1080){
-                    point.y = y0 + vY*t+g*t*(t/2);
-                    point.x = x0 + vX*t;
-                    vNow = vY+g*t;
-                    newY = point.y;
-                    newX = point.x;
-                    t+=2;
-                } else{
-                    vY = -vNow*0.85f;
-                    vX = 0.85f*vX;
-                    t = 0;
-                    x0 = newX;
-                    y0 = 1079;
-                }
-
-
-
-
-                   Thread.sleep(60); //1000 - 1 сек
-
-            } catch (InterruptedException e){
-
+            if (point.y <= MainActivity.HEIGTH_DEVICE - 250) {
+                point.y = y0 + vy * t + g * t * (t / 2);
+                point.x = x0 + vx * t;
+                v = vy + g * t;
+                vy = v;
+                t += 0.2f;
+            } else {
+                vy = -(v+g*t);
+                vx = vx*0.85f;
+                t=0;
+                x0 = point.x;
+                y0 = MainActivity.HEIGTH_DEVICE-250;
+                point.y = y0;
             }
 
-        }
+            if(vx < 10 || point.x > MainActivity.WIDTH_DEVICE) point.run = false;
 
+            try {
+                Thread.sleep(60);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
+
+
 }
